@@ -7,28 +7,26 @@ output: html_document
 
 Coding convention.
 
-```{r}
-## --------------------------------------------------------------------------------------
-## NAMING:
-## --------------------------------------------------------------------------------------
-## T = Test-collection
-## M = Measure
-## Q = Query
-## S = Score
-## A = Algorithm (that which is usually 'system')
-## --------------------------------------------------------------------------------------
-## VARIABLE PREFIX:
-## --------------------------------------------------------------------------------------
-## v = vector
-## l = list
-## m = matrix
-## a = array
-## s = string (should be 'c' as in 'character' for R?)
-## d = data frame
-## w/l = wide/long table format
-## f = file name (then what is a string?)
-## --------------------------------------------------------------------------------------
-```
+	## --------------------------------------------------------------------------------------
+	## NAMING:
+	## --------------------------------------------------------------------------------------
+	## T = Test-collection
+	## M = Measure
+	## Q = Query
+	## S = Score
+	## A = Algorithm (that which is usually 'system')
+	## --------------------------------------------------------------------------------------
+	## VARIABLE PREFIX:
+	## --------------------------------------------------------------------------------------
+	## v = vector
+	## l = list
+	## m = matrix
+	## a = array
+	## s = string (should be 'c' as in 'character' for R?)
+	## d = data frame
+	## w/l = wide/long table format
+	## f = file name (then what is a string?)
+	## --------------------------------------------------------------------------------------
 
 Required libraries.
 
