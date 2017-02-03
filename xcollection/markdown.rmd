@@ -1,0 +1,156 @@
+---
+title: "EVAL"
+output: html_document
+---
+
+**Initialize**
+
+Coding convention.
+
+```{r}
+## --------------------------------------------------------------------------------------
+## NAMING:
+## --------------------------------------------------------------------------------------
+## T = Test-collection
+## M = Measure
+## Q = Query
+## S = Score
+## A = Algorithm (that which is usually 'system')
+## --------------------------------------------------------------------------------------
+## VARIABLE PREFIX:
+## --------------------------------------------------------------------------------------
+## v = vector
+## l = list
+## m = matrix
+## a = array
+## s = string (should be 'c' as in 'character' for R?)
+## d = data frame
+## w/l = wide/long table format
+## f = file name (then what is a string?)
+## --------------------------------------------------------------------------------------
+```
+
+Required libraries.
+
+```{r}
+library("reshape2")
+library("ggplot2")
+```
+
+Functions.
+
+Read treceval file into a table, which happens to be in long-format, but, because of the 'runid' line, which has a string in the 3rd column, all columns are read in as characters. So, aftern reading in the file, mark and drop rows with 'all' in column 2\. Then convert it to a wide-table using dcast(). Finally, create a matrix from the data frame.
+
+```{r}
+
+# Build the Measure x Query x Score Matrix
+MQSMatrix <- function(fEval) {
+    vEvalHeader = c("measure", "query", "score")
+    dlMQS = read.table(fEval, header = FALSE, col.names = vEvalHeader, na.strings = c("runid", "all"))
+    dlMQS = na.omit(dlMQS)
+    ## Convert long-format table to wide-format table.
+    ## Use col 1 as row names and then drop it.
+    ## Create matrix from table
+    dwMQS = dcast(dlMQS, measure ~ query, value.var = "score")
+    rownames(dwMQS) = dwMQS[, 1]
+    dwMQS = dwMQS[, -1]
+    # write.table(dwMQS, "tables/DEMO.a.p.bm25.20.D.x", quote = FALSE, row.names = FALSE)
+    mMQS = data.matrix(dwMQS)
+    return(mMQS)
+}
+
+# Build the Algorithm x Query x Score matrix
+AQSMatrix <- function(vfEval) {
+    lmEval = lapply(vfEval, function(x) MQSMatrix(x))
+    lmAQS = lapply(lmEval, function(z) z["map",])
+    vAName = basename(vfEval)
+    vQName = names(lmAQS[[1]])
+    mAQS = matrix(unlist(lmAQS), nrow = length(vfEval), byrow = T, dimnames = list(vAName, vQName))
+    return(mAQS)
+}
+
+# Get list of eval files whose names match a regex.
+getEvalFileList <- function(regex) {
+    vfEval = list.files("data/LTR/evals", pattern = regex, full.names = TRUE)
+}
+```
+
+
+**DEMO**
+
+The following transformation is demonstrated here:
+TRECEVAL output files -> matrix -> list of matrices; one each for a test-collection
+
+TRECEVAL output file -> Measure x Query x Score matrix (mMQS)
+
+```{r}
+fEval = "data/LTR/evals/AP.d.p.bm25.196.T.x"
+mMQS = MQSMatrix(fEval)
+```
+
+mMQS
+```{r, echo=FALSE}
+print(mMQS[,1:5])
+```
+
+Just for fun:
+3D plot for mMQS matrix. Rows 14, 15 and 16(num \_rel, num \_rel\_ret, num \_ret) were dropped to keep scores within a range that creates a decent picture.
+
+```{r}
+mMQS = mMQS[ - c(14, 15, 16),]
+ persp(x = 1:nrow(mMQS), y = 1:ncol(mMQS), z = mMQS, xlab = "Measure", ylab = "Query", zlab = "Score", theta = 30, phi = 30, col = "lightblue", shade = 0.25, ticktype = "detailed")
+```
+
+Set of TRECEVAL output files -> list of mMQS matrices -> Algorithm x Query x Measure matrix (mAQS)
+
+```{r}
+vfEval = getEvalFileList("^AP\\..*")
+mAQS = AQSMatrix(vfEval)
+```
+
+mAQS
+```{r, echo=FALSE}
+print(mAQS[,1:5])
+```
+
+Construct a list of mAQS matrices (lmAQS); one each for a test-collections.
+
+```{r}
+vTName = c("AP", "DOE", "FR")
+lTIndex = setNames(as.list(1:length(vTName)), vTName)
+vfEvalRgx = paste("^", vTName, "\\.", sep = "")
+lmAQS = lapply(vfEvalRgx, function(x) {y = getEvalFileList(x); AQSMatrix(y)})
+```
+
+Part of one matrix from lmAQS for the AP test-collection:
+```{r, echo=FALSE}
+print(lmAQS[[lTIndex[["AP"]]]][, 1:5])
+```
+
+Another for the DOE test-collection:
+```{r, echo=FALSE}
+print(lmAQS[[lTIndex[["DOE"]]]][, 1:5])
+```
+
+**Derive the mean-score (MAP) table from all test-collection matrices**
+
+```{r}
+lvRowMean = lapply(vTName, function(x) rowMeans(lmAQS[[lTIndex[[x]]]]))
+## Chris's table: Algorithm x Testcol x Mean Score
+vColName = rownames(lmAQS[[lTIndex[[1]]]])
+vAName = sapply(strsplit(vColName, "[.]"), function(x) paste(x[2:4], collapse = "."))
+mATS = matrix(unlist(lvRowMean), nrow = length(vTName), byrow = T, dimnames = list(vTName, vAName))
+```
+
+mATS
+```{r, echo=FALSE}
+print(mATS[,1:5])
+```
+
+Plot mATS
+```{r}
+dATS = data.frame(mATS)
+dATS[, "Algorithm"] = rownames(dATS)
+dlATS = melt(dATS)
+ggplot(dlATS, aes(variable, value, fill = variable)) + geom_bar(width = 0.4, stat = "identity") + facet_grid(Algorithm ~ .) + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
+```
