@@ -81,7 +81,7 @@ print(mMQS[,1:5])
 # Just for fun: plot the mMQS matrix (the plot makes no real sense).
 # Rows 14, 15 and 16(num_rel, num_rel_ret, num_ret) were dropped to keep scores within a range that creates a decent picture.
 mMQS = mMQS[ - c(14, 15, 16),]
- persp(x = 1:nrow(mMQS), y = 1:ncol(mMQS), z = mMQS, xlab = "Measure", ylab = "Query", zlab = "Score", theta = 30, phi = 30, col = "lightblue", shade = 0.25, ticktype = "detailed")
+persp(x = 1:nrow(mMQS), y = 1:ncol(mMQS), z = mMQS, xlab = "Measure", ylab = "Query", zlab = "Score", theta = 30, phi = 30, col = "lightblue", shade = 0.25, ticktype = "detailed")
 ```
 
 #### Derive mAQS: Algorithm x Query x Measure matrix
@@ -89,7 +89,10 @@ mMQS = mMQS[ - c(14, 15, 16),]
 ```{r}
 vfEval = getEvalFileList("^AP\\..*")
 mAQS = AQSMatrix(vfEval)
-print(mAQS[,1:5])
+print(mAQS[, 1:5])
+rc <- rainbow(nrow(mAQS), start = 0, end = .3)
+cc <- rainbow(ncol(mAQS), start = 0, end = .3)
+heatmap(mAQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, ColSideColors = cc)
 ```
 
 #### Derive lmAQS: A list of mAQS matrices, one each for a test-collections.
