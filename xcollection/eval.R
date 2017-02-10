@@ -57,23 +57,47 @@ getEvalFileList <- function(regex) {
     vfEval = list.files("data/LTR/evals", pattern = regex, full.names = TRUE)
 }
 
+# Convert a matrix to a data-frame
+getDataFrameFromMatrix <- function(mMatrix, sColHeader) {
+    # mMatrix must have well-defines row-names and column-names.
+    # sColHeader is the column header of the new column inserted from at left of the data-frame.
+    dDataFrame = data.frame(mMatrix, row.names = NULL)
+    colnames(dDataFrame) = colnames(mMatrix)
+    dDataFrame = cbind(sStubHeader = rownames(mMatrix), dDataFrame)
+    names(dDataFrame)[names(dDataFrame) == "sStubHeader"] = sColHeader
+    return(dDataFrame)
+}
+
 ## DEBUG
 fEval = "data/LTR/evals/AP.d.p.bm25.196.T.x"
 mMQS = MQSMatrix(fEval)
+
+# Boxplot the eval measures
+# ggplot only consumes data-frames, so convert the matrices first.
+dMQS = getDataFrameFromMatrix(mMQS, "measure")
+dlMQS = melt(dMQS[ - c(14, 15, 16),], id.vars = "measure", variable.name = "query", value.name = "score")
+ggplot(dlMQS, aes(x = measure, y = score, fill = measure)) + geom_boxplot() + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
+
 vfEval = getEvalFileList("^AP\\..*")
 mAQS = AQSMatrix(vfEval)
-# Heatmap
-rc <- rainbow(nrow(mAQS), start = 0, end = .3)
-cc <- rainbow(ncol(mAQS), start = 0, end = .3)
-heatmap(mAQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, ColSideColors = cc)
+
+# Boxplot the algorithms' score
+dAQS = getDataFrameFromMatrix(mAQS, "algorithm")
+dlAQS = melt(dAQS, id.vars = "algorithm", variable.name = "query", value.name = "score")
+ggplot(dlAQS, aes(x = algorithm, y = score, fill = algorithm)) + geom_boxplot() + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
+
+## Heatmap
+## TODO: greyscale heatmap, ggplot heatmap
+#rc <- rainbow(nrow(mAQS), start = 0, end = .3)
+#cc <- rainbow(ncol(mAQS), start = 0, end = .3)
+#heatmap(mAQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, ColSideColors = cc)
 
 ## Prototype 3D plot for measures x queries x scores. Rows 14, 15 and 16 (num_rel, num_rel_ret, num_ret) were dropped to keep scores within a range that creates a decent picture.
-
 #mMQS = mMQS[ - c(14, 15, 16),]
 #persp(x = 1:nrow(mMQS), y = 1:ncol(mMQS), z = mMQS, xlab = "Measures", ylab = "Queries", zlab = "Scores", theta = 50, phi = 45, shade = 0.1, ticktype = "detailed")
 
 ## Boxplot rows
-# plot(as.factor(rownames(mMQS)), mMQS)
+#plot(as.factor(rownames(mAQS)), mAQS)
 
 ## Scatterplot measures x queries
 # pairs(mMQS)
@@ -90,6 +114,7 @@ heatmap(mAQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, C
 #lTIndex = setNames(as.list(1:length(vTName)), vTName)
 #vfEvalRgx = paste("^", vTName, "\\.", sep = "")
 #lmAQS = lapply(vfEvalRgx, function(x) { y = getEvalFileList(x); AQSMatrix(y) })
+# TODO: Plot list of matrices, in a grid.
 
 ## DEBUG
 # Index into the list of mAQS matrices
