@@ -60,6 +60,18 @@ AQSMatrix <- function(vfEval) {
 getEvalFileList <- function(regex) {
     vfEval = list.files("data/LTR/evals", pattern = regex, full.names = TRUE)
 }
+
+# Convert a matrix to a data-frame
+
+getDataFrameFromMatrix <- function(mMatrix, sColHeader) {
+    # mMatrix must have well-defined row-names and column-names.
+    # sColHeader is the column header of the new column inserted at left of the data-frame.
+    dDataFrame = data.frame(mMatrix, row.names = NULL)
+    colnames(dDataFrame) = colnames(mMatrix)
+    dDataFrame = cbind(sStubHeader = rownames(mMatrix), dDataFrame)
+    names(dDataFrame)[names(dDataFrame) == "sStubHeader"] = sColHeader
+    return(dDataFrame)
+}
 ```
 
 
@@ -73,26 +85,62 @@ The overall transformation steps:
 
 #### Derive mMQS: Measure x Query x Score matrix
 
+* Create a R matrix
+* Plot that in several ways in an attempt to visualize the matrix, and, validate the plots themselves.
+  - persp(): A tessalation of the points in 3D
+  - heatmap(): Plots a 2D colored heat-map
+  - plot(): Box-plots the rows, i.e. a measure's set of score for all the queries.
+  - ggplot() + geom_boxplot(): A more pretty box-plot, preceded by some reshaping of the data to go from a matrix to a long-format table.
+   
 ```{r}
-fEval = "data/LTR/evals/AP.d.p.bm25.196.T.x"
+fEval = "data/LTR/evals/FR94.d.p.bm25.30.T.x"
 mMQS = MQSMatrix(fEval)
 print(mMQS[,1:5])
 
 # Just for fun: plot the mMQS matrix (the plot makes no real sense).
-# Rows 14, 15 and 16(num_rel, num_rel_ret, num_ret) were dropped to keep scores within a range that creates a decent picture.
+# Rows 14, 15 and 16 (i.e., num_rel, num_rel_ret, num_ret) were dropped to keep scores within a range that creates a decent picture.
 mMQS = mMQS[ - c(14, 15, 16),]
 persp(x = 1:nrow(mMQS), y = 1:ncol(mMQS), z = mMQS, xlab = "Measure", ylab = "Query", zlab = "Score", theta = 30, phi = 30, col = "lightblue", shade = 0.25, ticktype = "detailed")
+
+rc <- rainbow(nrow(mMQS), start = 0, end = .3)
+cc <- rainbow(ncol(mMQS), start = 0, end = .3)
+heatmap(mMQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, ColSideColors = cc)
+
+plot(as.factor(rownames(mMQS)), mMQS)
+
+# Boxplot the eval measures.
+# ggplot only consumes data-frames, so convert the matrices first.
+dMQS = getDataFrameFromMatrix(mMQS, "measure")
+dlMQS = melt(dMQS[ - c(14, 15, 16),], id.vars = "measure", variable.name = "query", value.name = "score")
+ggplot(dlMQS, aes(x = measure, y = score, fill = measure)) + geom_boxplot() + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
 ```
 
 #### Derive mAQS: Algorithm x Query x Measure matrix
 
+* Create a R matrix by picking a row each from a list of eval-matrices corresponding to a eval-measure.
+* Show a 3D tesselation of the points.
+* Show a heatmap
+* Show a standard box-plot
+* Show a pretty ggplot box-plot.
+
 ```{r}
-vfEval = getEvalFileList("^AP\\..*")
+vfEval = getEvalFileList("^FR94\\..*")
 mAQS = AQSMatrix(vfEval)
 print(mAQS[, 1:5])
+
+persp(x = 1:nrow(mAQS), y = 1:ncol(mAQS), z = mAQS, xlab = "Algorithm", ylab = "Query", zlab = "Score", theta = 30, phi = 30, col = "lightblue", shade = 0.25, ticktype = "detailed")
+
 rc <- rainbow(nrow(mAQS), start = 0, end = .3)
 cc <- rainbow(ncol(mAQS), start = 0, end = .3)
 heatmap(mAQS, Rowv = NA, Colv = NA, col = heat.colors(256), RowSideColor = rc, ColSideColors = cc)
+
+# Boxplot the algorithms' score.
+
+plot(as.factor(rownames(mAQS)), mAQS)
+
+dAQS = getDataFrameFromMatrix(mAQS, "algorithm")
+dlAQS = melt(dAQS, id.vars = "algorithm", variable.name = "query", value.name = "score")
+ggplot(dlAQS, aes(x = algorithm, y = score, fill = algorithm)) + geom_boxplot() + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
 ```
 
 #### Derive lmAQS: A list of mAQS matrices, one each for a test-collections.
