@@ -23,8 +23,9 @@ output: html_document
 	f = file name (then what is a string?)
 
 ```{r}
-library("reshape2")
-library("ggplot2")
+library(reshape2)
+library(ggplot2)
+library(metafor)
 
 # Functions:
 
@@ -156,23 +157,81 @@ print(lmAQS[[lTIndex[["AP"]]]][, 1:5])
 print(lmAQS[[lTIndex[["DOE"]]]][, 1:5])
 ```
 
-#### Derive mATS: Algorithm x Test-collection x Score matrix
+#### Derive mTAS: Test-collection x Algorithm x Score matrix.
 
-* Scores are Mean-scores (MAP, in this case) from each matrix in lmAQS, for all test-collections
-* Followed by a plot.
+```{r]
+## Get row and column E[X] and Var(X).
+lvRowMean = lapply(vTName, function(x) { apply(lmAQS[[lTIndex[[x]]]], 1, mean) })
+lvRowSD = lapply(vTName, function(x) { apply(lmAQS[[lTIndex[[x]]]], 1, sd) })
+lvColMean = lapply(vTName, function(x) { apply(lmAQS[[lTIndex[[x]]]], 2, mean) })
+lvColSD = lapply(vTName, function(x) { apply(lmAQS[[lTIndex[[x]]]], 2, sd) })
+
+## Build  Testcol x Algorithm x Mean Score
+TASMatrix <- function(lmAQS, lvRowMean, vTName) {
+    vColName = rownames(lmAQS[[1]])
+    vAName = sapply(strsplit(vColName, "[.]"), function(x) paste(x[2:4], collapse = "."))
+    mTAS = matrix(unlist(lvRowMean), nrow = length(vTName), byrow = T, dimnames = list(vTName, vAName))
+    return(mTAS)
+}
+
+vizTASMatrix <- function(mTAS) {
+    ## This in effect is Chris's 8-TREC table.
+    dTAS = data.frame(mTAS)
+    dTAS[, "Algorithm"] = rownames(dTAS)
+    dlTAS = melt(dTAS)
+    ggplot(dlTAS, aes(variable, value, fill = variable)) + geom_bar(width = 0.4, stat = "identity") + facet_grid(Algorithm ~ .) + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
+}
+
+mTAS = TASMatrix(lmAQS, lvRowMean, vTName)
+vizTASMatrix(mTAS)
+```
+
+#### Score standardisation (Webber's paper)
 
 ```{r}
+# Score standardization (s' = (s - mean)/sd) (See Webber's paper)
+# Computation produces NaNs, which have been set to zero in result matrix. What does this mean anyway?
+scoreStd <- function(mAQS, vColMean, vColSD) {
+    mStdAQS = t(apply(mAQS, 1, function(x) {(x - vColMean) / vColSD }))
+    mStdAQS[is.nan(mStdAQS)] = 0
+    return(mStdAQS)
+}
 
-# Chris's table: Algorithm x Testcol x Mean Score
-lvRowMean = lapply(vTName, function(x) rowMeans(lmAQS[[lTIndex[[x]]]]))
-vColName = rownames(lmAQS[[lTIndex[[1]]]])
-vAName = sapply(strsplit(vColName, "[.]"), function(x) paste(x[2:4], collapse = "."))
-mATS = matrix(unlist(lvRowMean), nrow = length(vTName), byrow = T, dimnames = list(vTName, vAName))
-print(mATS[, 1:5])
-
-# Plot mATS
-dATS = data.frame(mATS)
-dATS[, "Algorithm"] = rownames(dATS)
-dlATS = melt(dATS)
-ggplot(dlATS, aes(variable, value, fill = variable)) + geom_bar(width = 0.4, stat = "identity") + facet_grid(Algorithm ~ .) + theme(strip.text.x = element_text(size = 8, angle = 90), axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6))
+mStdAQS = scoreStd(lmAQS[[lTIndex[["DOE"]]]], lvColMean[[lTIndex[["DOE"]]]], lvColSD[[lTIndex[["DOE"]]]])
+boxplot(lmAQS[[lTIndex[["DOE"]]]])
+boxplot(mStdAQS)
 ```
+
+#### Derive Meta-analysis table
+
+```{r}
+mMetaPair = matrix(c("AP.d.x.bm25L.196.T.x", "AP.d.p.bm25L.196.T.x",
+                     "DOE.d.x.bm25L.80.T.x", "DOE.d.p.bm25L.80.T.x",
+                     "FR.d.x.bm25L.111.T.x", "FR.d.p.bm25L.111.T.x"),
+                      3, 2, byrow = T)
+
+buildMetaRow <- function(i) {
+    m1  = lvRowMean[[i]][mMetaPair[i, 1]]
+    m2  = lvRowMean[[i]][mMetaPair[i, 2]]
+    sd1 = lvRowSD[[i]][mMetaPair[i, 1]]
+    sd2 = lvRowSD[[i]][mMetaPair[i, 2]]
+    n1 = n2 = ncol(lmAQS[[i]])
+    return(c(m1, sd1, n1, m2, sd2, n2))
+}
+
+buildMetaMatrix <- function(mMetaPair) {
+    lvMetaRow = lapply(1:nrow(mMetaPair), function(i) buildMetaRow(i))
+    vColName = c("m1", "sd1", "n1", "m2", "sd2", "n2")
+    vRowName = vTName
+    mMetaMatrix = matrix(unlist(lvMetaRow), length(vRowName), length(vColName), byrow = T, dimnames = list(vRowName, vColName))
+    return(mMetaMatrix)
+}
+
+print(mMetaPair)
+mMetaMatrix = buildMetaMatrix(mMetaPair)
+
+dMeta = getDataFrameFromMatrix(mMetaMatrix, "Testcol")
+metaRMA = rma(measure = "MD", m1i = m1, m2i = m2, sd1i = sd1, sd2i = sd2, n1i = n1, n2i = n2, method = "FE", data = dMeta)
+forest(metaRMA, alim = c(-0.2, 0.2), slab = dMeta$Testcol)
+```
+
